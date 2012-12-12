@@ -317,15 +317,7 @@ static int set_parameter_copybit(
             break;
         case COPYBIT_TRANSFORM:
             ctx->mFlags &= ~0x7;
-            if ((value & 0x7) == 0x5) {
-                ctx->mFlags |= 0x6;
-            }
-            else if ((value & 0x7) == 0x6) {
-                ctx->mFlags |= 0x5;
-            }
-            else {
-                ctx->mFlags |= value & 0x7;
-            }
+            ctx->mFlags |= value & 0x7;
             break;
         default:
             status = -EINVAL;

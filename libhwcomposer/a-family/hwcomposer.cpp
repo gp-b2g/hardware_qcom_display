@@ -52,6 +52,8 @@
 
 #define DEBUG_HWC 0
 
+#define MAX_COPYBIT_RECT 12
+
 #ifdef COMPOSITION_BYPASS
 #define MAX_BYPASS_LAYERS 3
 #define BYPASS_DEBUG 0
@@ -1493,6 +1495,19 @@ static int drawLayerUsingCopybit(hwc_composer_device_t *dev, hwc_layer_t *layer,
     hwc_region_t region = layer->visibleRegionScreen;
     region_iterator copybitRegion(region);
 
+    // Since blitting region by region is serial,
+    // If a layer has long list of dirty regions,
+    // better if we draw the full layer
+    if(region.numRects > MAX_COPYBIT_RECT) {
+        //create one clip region
+        hwc_rect display_rect = { layer->displayFrame.left,
+                                  layer->displayFrame.top,
+                                  layer->displayFrame.right,
+                                  layer->displayFrame.bottom };
+        hwc_region_t display_region = { 1, (hwc_rect_t const*)&display_rect };
+        region_iterator copyRegion(display_region);
+        copybitRegion = copyRegion;
+    }
     copybit->set_parameter(copybit, COPYBIT_FRAMEBUFFER_WIDTH, renderBuffer->width);
     copybit->set_parameter(copybit, COPYBIT_FRAMEBUFFER_HEIGHT, renderBuffer->height);
     copybit->set_parameter(copybit, COPYBIT_TRANSFORM, layer->transform);
@@ -1622,7 +1637,6 @@ static int hwc_set(hwc_composer_device_t *dev,
 
     private_hwc_module_t* hwcModule = reinterpret_cast<private_hwc_module_t*>(
                                                            dev->common.module);
-    framebuffer_device_t *fbDev = hwcModule->fbDevice;
 
     if (!hwcModule) {
         LOGE("hwc_set invalid module");
@@ -1634,6 +1648,9 @@ static int hwc_set(hwc_composer_device_t *dev,
         unlockPreviousOverlayBuffer(ctx);
         return -1;
     }
+
+    framebuffer_device_t *fbDev = hwcModule->fbDevice;
+
 #ifdef COMPOSITION_BYPASS
     if(!list){
         //Device in suspended state. Close all the MDP pipes
@@ -1704,9 +1721,6 @@ static int hwc_set(hwc_composer_device_t *dev,
         }
     }
 
-    // Unlock the previously locked buffer, since the overlay has completed reading the buffer
-    unlockPreviousOverlayBuffer(ctx);
-
 #ifdef COMPOSITION_BYPASS
     unlockPreviousBypassBuffers(ctx);
     storeLockedBypassHandle(list, ctx);
@@ -1733,6 +1747,12 @@ static int hwc_set(hwc_composer_device_t *dev,
 #endif
 
     hwc_closeOverlayChannels(ctx);
+
+    // Unlock the previously locked vdeo buffer, since the overlay has completed
+    // reading the buffer. Should be done only after closing channels, if
+    // applicable.
+    unlockPreviousOverlayBuffer(ctx);
+
     return ret;
 }
 
