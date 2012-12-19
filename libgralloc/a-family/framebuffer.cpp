@@ -156,6 +156,12 @@ static void *disp_loop(void *ptr)
         m->info.activate = FB_ACTIVATE_VBL;
         m->info.yoffset = offset / m->finfo.line_length;
 
+		if (m->info.yoffset == 855)
+			m->info.yoffset = 854;
+
+		if (m->info.yoffset == 1710)
+			m->info.yoffset = 1708;
+
 #if defined(HDMI_DUAL_DISPLAY)
         pthread_mutex_lock(&m->overlayLock);
         m->orientation = neworientation;

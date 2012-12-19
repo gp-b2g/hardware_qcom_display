@@ -83,17 +83,6 @@ namespace {
             lock.timeout = timeout;
             lock.fd = hnd->genlockHandle;
 
-#ifdef GENLOCK_IOC_DREADLOCK
-            if (ioctl(hnd->genlockPrivFd, GENLOCK_IOC_DREADLOCK, &lock)) {
-                LOGE("%s: GENLOCK_IOC_DREADLOCK failed (lockType0x%x, err=%s fd=%d)", __FUNCTION__,
-                        lockType, strerror(errno), hnd->fd);
-                if (ETIMEDOUT == errno)
-                    return GENLOCK_TIMEDOUT;
-
-                return GENLOCK_FAILURE;
-            }
-#else
-            // depreciated
             if (ioctl(hnd->genlockPrivFd, GENLOCK_IOC_LOCK, &lock)) {
                 LOGE("%s: GENLOCK_IOC_LOCK failed (lockType0x%x, err=%s fd=%d)", __FUNCTION__,
                         lockType, strerror(errno), hnd->fd);
@@ -102,7 +91,6 @@ namespace {
 
                 return GENLOCK_FAILURE;
             }
-#endif
         }
         return GENLOCK_NO_ERROR;
     }
@@ -354,12 +342,7 @@ genlock_status_t genlock_write_to_read(native_handle_t *buffer_handle, int timeo
         LOGW("%s: trying to lock a buffer with timeout = 0", __FUNCTION__);
     }
     // Call the private function to perform the lock operation specified.
-#ifdef GENLOCK_IOC_DREADLOCK
-    ret = perform_lock_unlock_operation(buffer_handle, GENLOCK_RDLOCK, timeout, GENLOCK_WRITE_TO_READ);
-#else
-    // depreciated
     ret = perform_lock_unlock_operation(buffer_handle, GENLOCK_RDLOCK, timeout, 0);
-#endif
 #endif
     return ret;
 }
