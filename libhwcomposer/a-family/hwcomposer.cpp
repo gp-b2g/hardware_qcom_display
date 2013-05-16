@@ -1313,6 +1313,50 @@ private:
     mutable range r; 
 };
 
+//#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
+
+static int fillColorUsingCopybit(copybit_device_t *copybit, hwc_layer_t *layer,
+                                 EGLDisplay dpy, EGLSurface surface)
+{
+    android_native_buffer_t *renderBuffer =
+        (android_native_buffer_t *)eglGetRenderBufferANDROID(dpy, surface);
+    if (!renderBuffer) {
+        LOGE("%s: eglGetRenderBufferANDROID returned NULL buffer", __FUNCTION__);
+        return -1;
+    }
+
+    private_handle_t *fbHandle = (private_handle_t *)renderBuffer->handle;
+    if(!fbHandle) {
+        LOGE("%s: Framebuffer handle is NULL", __FUNCTION__);
+        return -1;
+    }
+
+    uint32_t color = layer->transform;
+    hwc_rect_t displayFrame = layer->displayFrame;
+    copybit_rect_t dstRect = {displayFrame.left, displayFrame.top,
+                              displayFrame.right, displayFrame.bottom};
+
+    copybit_image_t dst;
+    dst.w = ALIGN(fbHandle->width,32);
+    dst.h = fbHandle->height;
+    dst.format = fbHandle->format;
+    dst.base = (void *)fbHandle->base;
+    dst.handle = (native_handle_t *)renderBuffer->handle;
+
+    if ((dstRect.l < 0) || (dstRect.t < 0) ||
+        (dstRect.r - dstRect.l > dst.w) ||
+        (dstRect.b - dstRect.t > dst.h)) {
+        LOGE("%s: Invalid destination rect.", __FUNCTION__);
+        return -1;
+    }
+
+    int res = copybit->fill(copybit, &dst, &dstRect, color);
+    return res;
+}
+
+
+//#Fin parche
+
 static int drawLayerUsingCopybit(hwc_composer_device_t *dev, hwc_layer_t *layer, EGLDisplay dpy,
                                  EGLSurface surface)
 {
@@ -1330,6 +1374,13 @@ static int drawLayerUsingCopybit(hwc_composer_device_t *dev, hwc_layer_t *layer,
 
     private_handle_t *hnd = (private_handle_t *)layer->handle;
     if(!hnd) {
+//#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
+	if (layer->flags & HWC_COLOR_FILL) {
+            copybit_device_t *copybit = hwcModule->copybitEngine;
+            int res = fillColorUsingCopybit(copybit, layer, dpy, surface);
+            return res;
+        }
+//#Fin parche
         LOGE("%s: invalid handle", __FUNCTION__);
         return -1;
     }
@@ -1476,8 +1527,11 @@ static int drawLayerUsingCopybit(hwc_composer_device_t *dev, hwc_layer_t *layer,
             hwc_region_t tmp_hwc_reg = {1,(hwc_rect_t const*)&tmp_hwc_rect};
             region_iterator tmp_it(tmp_hwc_reg);
             copybit->set_parameter(copybit,COPYBIT_TRANSFORM,0);
-            copybit->set_parameter(copybit, COPYBIT_PLANE_ALPHA,
-                        (layer->blending == HWC_BLENDING_NONE) ? -1 : layer->alpha);
+//#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
+            //copybit->set_parameter(copybit, COPYBIT_PLANE_ALPHA,
+                        //(layer->blending == HWC_BLENDING_NONE) ? -1 : layer->alpha);
+	    copybit->set_parameter(copybit, COPYBIT_PLANE_ALPHA, 255);
+//#Fin parche
             err = copybit->stretch(copybit,&tmp_dst, &src, &tmp_rect, &srcRect, &tmp_it);
             if(err < 0){
                 LOGE("%s:%d::tmp copybit stretch failed",__FUNCTION__,__LINE__);
@@ -1511,12 +1565,18 @@ static int drawLayerUsingCopybit(hwc_composer_device_t *dev, hwc_layer_t *layer,
     copybit->set_parameter(copybit, COPYBIT_FRAMEBUFFER_WIDTH, renderBuffer->width);
     copybit->set_parameter(copybit, COPYBIT_FRAMEBUFFER_HEIGHT, renderBuffer->height);
     copybit->set_parameter(copybit, COPYBIT_TRANSFORM, layer->transform);
-    copybit->set_parameter(copybit, COPYBIT_PLANE_ALPHA,
-                           (layer->blending == HWC_BLENDING_NONE) ? -1 : layer->alpha);
+//#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
+    //copybit->set_parameter(copybit, COPYBIT_PLANE_ALPHA,
+                           //(layer->blending == HWC_BLENDING_NONE) ? -1 : layer->alpha);
+    copybit->set_parameter(copybit, COPYBIT_PLANE_ALPHA, 255);
+//#Fin parche
     copybit->set_parameter(copybit, COPYBIT_PREMULTIPLIED_ALPHA,
                            (layer->blending == HWC_BLENDING_PREMULT)? COPYBIT_ENABLE : COPYBIT_DISABLE);
-    copybit->set_parameter(copybit, COPYBIT_DITHER,
-                            (dst.format == HAL_PIXEL_FORMAT_RGB_565)? COPYBIT_ENABLE : COPYBIT_DISABLE);
+//#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
+    //copybit->set_parameter(copybit, COPYBIT_DITHER,
+                            //(dst.format == HAL_PIXEL_FORMAT_RGB_565)? COPYBIT_ENABLE : COPYBIT_DISABLE);
+    copybit->set_parameter(copybit, COPYBIT_DITHER, COPYBIT_DISABLE);
+//#Fin parche
     err = copybit->stretch(copybit, &dst, &src, &dstRect, &srcRect, &copybitRegion);
 
     if(tmpHnd)

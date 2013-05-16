@@ -1274,6 +1274,19 @@ static int blit_copybit(
     return stretch_copybit_internal(dev, dst, src, &dr, &sr, region, false);
 }
 
+//#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
+
+/** Fill the rect on dst with rgba color **/
+static int fill_color(struct copybit_device_t *dev,
+                      struct copybit_image_t const *dst,
+                      struct copybit_rect_t const *rect,
+                      uint32_t color)
+{
+    // TODO: Impl. once c2d driver supports color fill.
+    return -EINVAL;
+}
+
+//#Fin parche
 /*****************************************************************************/
 
 /** Close the copybit device */

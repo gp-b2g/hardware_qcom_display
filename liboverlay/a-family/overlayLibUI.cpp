@@ -47,7 +47,6 @@ bool isRGBType(int format) {
         case MDP_BGRA_8888:
         case MDP_RGBX_8888:
         case MDP_RGB_565:
-        case MDP_RGB_888:
             ret = true;
             break;
         default:
@@ -64,9 +63,6 @@ int getRGBBpp(int format) {
         case MDP_BGRA_8888:
         case MDP_RGBX_8888:
             ret = 4;
-            break;
-        case MDP_RGB_888:
-            ret = 3;
             break;
         case MDP_RGB_565:
             ret = 2;

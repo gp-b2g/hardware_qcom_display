@@ -227,7 +227,7 @@ static int msm_copybit(struct copybit_context_t *dev, void const *list)
 #if DEBUG_MDP_ERRORS
         struct mdp_blit_req_list const* l = (struct mdp_blit_req_list const*)list;
         for (int i=0 ; i<l->count ; i++) {
-            LOGE("%d: src={w=%d, h=%d, f=%d, rect={%d,%d,%d,%d}}\n"
+            LOGD("%d: src={w=%d, h=%d, f=%d, rect={%d,%d,%d,%d}}\n"
                  "    dst={w=%d, h=%d, f=%d, rect={%d,%d,%d,%d}}\n"
                  "    flags=%08lx"
                     ,
@@ -382,7 +382,6 @@ static int stretch_copybit(
                 case HAL_PIXEL_FORMAT_BGRA_8888:
                 case HAL_PIXEL_FORMAT_RGBA_5551:
                 case HAL_PIXEL_FORMAT_RGBA_4444:
-                    LOGE ("%s : Unsupported Pixel format %d", __FUNCTION__, src->format);
                     return -EINVAL;
             }
         }
@@ -390,21 +389,14 @@ static int stretch_copybit(
         if (src_rect->l < 0 || src_rect->r > src->w ||
             src_rect->t < 0 || src_rect->b > src->h) {
             // this is always invalid
-            LOGE ("%s : Invalid source rectangle : src_rect l %d t %d r %d b %d",\
-                        __FUNCTION__, src_rect->l, src_rect->t, src_rect->r, src_rect->b);
-
             return -EINVAL;
         }
 
-        if (src->w > MAX_DIMENSION || src->h > MAX_DIMENSION) {
-            LOGE ("%s : Invalid source dimensions w %d h %d", __FUNCTION__, src->w, src->h);
+        if (src->w > MAX_DIMENSION || src->h > MAX_DIMENSION)
             return -EINVAL;
-        }
 
-        if (dst->w > MAX_DIMENSION || dst->h > MAX_DIMENSION) {
-            LOGE ("%s : Invalid DST dimensions w %d h %d", __FUNCTION__, dst->w, dst->h);
+        if (dst->w > MAX_DIMENSION || dst->h > MAX_DIMENSION)
             return -EINVAL;
-        }
 
         if(src->format ==  HAL_PIXEL_FORMAT_YV12) {
             int usage = GRALLOC_USAGE_PRIVATE_ADSP_HEAP | GRALLOC_USAGE_PRIVATE_MM_HEAP;
@@ -444,6 +436,15 @@ static int stretch_copybit(
             set_infos(ctx, req, flags);
             set_image(&req->dst, dst);
             set_image(&req->src, src);
+//#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
+            if (req->src.format == MDP_RGBA_8888) {
+                req->src.format = MDP_BGRA_8888;
+            }
+            else if (req->src.format == MDP_RGBX_8888) {
+                req->src.format = MDP_XRGB_8888;
+            }
+
+//#Fin parche
             set_rects(ctx, req, dst_rect, src_rect, &clip, src->horiz_padding, src->vert_padding);
 
             if (req->src_rect.w<=0 || req->src_rect.h<=0)
@@ -461,7 +462,6 @@ static int stretch_copybit(
             status = msm_copybit(ctx, &list);
         }
     } else {
-        LOGE ("%s : Invalid COPYBIT context", __FUNCTION__);
         status = -EINVAL;
     }
     if(yv12_handle)
@@ -481,6 +481,52 @@ static int blit_copybit(
     return stretch_copybit(dev, dst, src, &dr, &sr, region);
 }
 
+//#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
+
+/** Fill the rect on dst with rgba color **/
+static int fill_color(struct copybit_device_t *dev,
+                      struct copybit_image_t const *dst,
+                      struct copybit_rect_t const *rect,
+                      uint32_t color)
+{
+    struct copybit_context_t* ctx = (struct copybit_context_t*)dev;
+    if (!ctx) {
+        LOGE ("%s: Invalid copybit context", __FUNCTION__);
+        return -EINVAL;
+    }
+
+    if (dst->w > MAX_DIMENSION || dst->h > MAX_DIMENSION) {
+        LOGE ("fill_color: Invalid DST w=%d h=%d", dst->w, dst->h);
+        return -EINVAL;
+    }
+
+    struct {
+        uint32_t count;
+        struct mdp_blit_req req[1];
+    } list;
+
+    list.count = 1;
+    mdp_blit_req* req = &list.req[0];
+    set_image(&req->dst, dst);
+    req->dst_rect.x  = rect->l;
+    req->dst_rect.y  = rect->t;
+    req->dst_rect.w  = rect->r - rect->l;
+    req->dst_rect.h  = rect->b - rect->t;
+    req->const_color.alpha = (uint32_t)((color >> 24) & 0xff);
+    if (req->const_color.alpha == 0)
+        return -EINVAL;
+    req->const_color.b = (uint32_t)((color >> 16) & 0xff);
+    req->const_color.g = (uint32_t)((color >> 8) & 0xff);
+    req->const_color.r = (uint32_t)((color >> 0) & 0xff);
+    req->alpha = MDP_ALPHA_NOP;
+    req->transp_mask = MDP_TRANSP_NOP;
+    req->flags = CONST_COLOR;
+
+    int status = msm_copybit(ctx, &list);
+    return status;
+}
+
+//#Fin parche
 /*****************************************************************************/
 
 /** Close the copybit device */
@@ -511,6 +557,9 @@ static int open_copybit(const struct hw_module_t* module, const char* name,
     ctx->device.get = get;
     ctx->device.blit = blit_copybit;
     ctx->device.stretch = stretch_copybit;
+//#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
+    ctx->device.fill = fill_color;
+//#Fin parche
     ctx->mAlpha = MDP_ALPHA_NOP;
     ctx->mFlags = 0;
     ctx->mFD = open("/dev/graphics/fb0", O_RDWR, 0);
