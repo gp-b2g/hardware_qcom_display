@@ -1313,50 +1313,6 @@ private:
     mutable range r; 
 };
 
-//#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
-
-static int fillColorUsingCopybit(copybit_device_t *copybit, hwc_layer_t *layer,
-                                 EGLDisplay dpy, EGLSurface surface)
-{
-    android_native_buffer_t *renderBuffer =
-        (android_native_buffer_t *)eglGetRenderBufferANDROID(dpy, surface);
-    if (!renderBuffer) {
-        LOGE("%s: eglGetRenderBufferANDROID returned NULL buffer", __FUNCTION__);
-        return -1;
-    }
-
-    private_handle_t *fbHandle = (private_handle_t *)renderBuffer->handle;
-    if(!fbHandle) {
-        LOGE("%s: Framebuffer handle is NULL", __FUNCTION__);
-        return -1;
-    }
-
-    uint32_t color = layer->transform;
-    hwc_rect_t displayFrame = layer->displayFrame;
-    copybit_rect_t dstRect = {displayFrame.left, displayFrame.top,
-                              displayFrame.right, displayFrame.bottom};
-
-    copybit_image_t dst;
-    dst.w = ALIGN(fbHandle->width,32);
-    dst.h = fbHandle->height;
-    dst.format = fbHandle->format;
-    dst.base = (void *)fbHandle->base;
-    dst.handle = (native_handle_t *)renderBuffer->handle;
-
-    if ((dstRect.l < 0) || (dstRect.t < 0) ||
-        (dstRect.r - dstRect.l > dst.w) ||
-        (dstRect.b - dstRect.t > dst.h)) {
-        LOGE("%s: Invalid destination rect.", __FUNCTION__);
-        return -1;
-    }
-
-    int res = copybit->fill(copybit, &dst, &dstRect, color);
-    return res;
-}
-
-
-//#Fin parche
-
 static int drawLayerUsingCopybit(hwc_composer_device_t *dev, hwc_layer_t *layer, EGLDisplay dpy,
                                  EGLSurface surface)
 {
@@ -1374,13 +1330,6 @@ static int drawLayerUsingCopybit(hwc_composer_device_t *dev, hwc_layer_t *layer,
 
     private_handle_t *hnd = (private_handle_t *)layer->handle;
     if(!hnd) {
-//#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
-	if (layer->flags & HWC_COLOR_FILL) {
-            copybit_device_t *copybit = hwcModule->copybitEngine;
-            int res = fillColorUsingCopybit(copybit, layer, dpy, surface);
-            return res;
-        }
-//#Fin parche
         LOGE("%s: invalid handle", __FUNCTION__);
         return -1;
     }
@@ -1418,6 +1367,29 @@ static int drawLayerUsingCopybit(hwc_composer_device_t *dev, hwc_layer_t *layer,
     // this needs to change to accomodate vertical stride
     // if needed in the future
     src.vert_padding = 0;
+
+    int layerTransform = layer->transform ;
+    // When flip and rotation(90) are present alter the flip,
+    // as GPU is doing the flip and rotation in opposite order
+    // to that of MDP3.0
+    // For 270 degrees, we get 90 + (H+V) which is same as doing
+    // flip first and then rotation (H+V) + 90
+#ifdef USE_MDP3
+    if (((layer->transform& HAL_TRANSFORM_FLIP_H) ||
+       (layer->transform & HAL_TRANSFORM_FLIP_V)) &&
+       (layer->transform &  HAL_TRANSFORM_ROT_90) &&
+       !(layer->transform ==  HAL_TRANSFORM_ROT_270)){
+        if(layer->transform & HAL_TRANSFORM_FLIP_H){
+            layerTransform ^= HAL_TRANSFORM_FLIP_H;
+            layerTransform |= HAL_TRANSFORM_FLIP_V;
+        }
+        if(layer->transform & HAL_TRANSFORM_FLIP_V){
+            layerTransform ^= HAL_TRANSFORM_FLIP_V;
+            layerTransform |= HAL_TRANSFORM_FLIP_H;
+        }
+    }
+#endif
+
     // Remove the srcBufferTransform if any
     layer->transform = (layer->transform & FINAL_TRANSFORM_MASK);
 
@@ -1564,7 +1536,7 @@ static int drawLayerUsingCopybit(hwc_composer_device_t *dev, hwc_layer_t *layer,
     }
     copybit->set_parameter(copybit, COPYBIT_FRAMEBUFFER_WIDTH, renderBuffer->width);
     copybit->set_parameter(copybit, COPYBIT_FRAMEBUFFER_HEIGHT, renderBuffer->height);
-    copybit->set_parameter(copybit, COPYBIT_TRANSFORM, layer->transform);
+    copybit->set_parameter(copybit, COPYBIT_TRANSFORM, layerTransform);
 //#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
     //copybit->set_parameter(copybit, COPYBIT_PLANE_ALPHA,
                            //(layer->blending == HWC_BLENDING_NONE) ? -1 : layer->alpha);
