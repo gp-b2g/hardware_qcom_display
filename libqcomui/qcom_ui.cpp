@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -10,7 +10,7 @@
  *     copyright notice, this list of conditions and the following
  *     disclaimer in the documentation and/or other materials provided
  *     with the distribution.
- *   * Neither the name of Code Aurora Forum, Inc. nor the names of its
+ *   * Neither the name of The Linux Foundation nor the names of its
  *     contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission.
  *
@@ -40,6 +40,7 @@
 #include <SkBitmap.h>
 #include <SkImageEncoder.h>
 #include <Transform.h>
+#include <genlock.h>
 
 using gralloc::IMemAlloc;
 using gralloc::IonController;
@@ -366,9 +367,8 @@ int qcomuiClearRegion(Region region, EGLDisplay dpy, EGLSurface sur)
     int ret = 0;
     int compositionType = QCCompositionType::getInstance().getCompositionType();
 
-    if (( compositionType == COMPOSITION_TYPE_GPU) ||
-        (compositionType == (COMPOSITION_TYPE_DYN|COMPOSITION_TYPE_C2D)))
-    {
+    if (compositionType == COMPOSITION_TYPE_GPU) {
+
         // For GPU or DYN comp. with C2D, return an error, so that SF can use
         // the GPU to draw the wormhole.
         return -1;
@@ -730,7 +730,7 @@ bool needsAspectRatio (int wRatio, int hRatio) {
 }
 
 void applyPixelAspectRatio (int wRatio, int hRatio, int orientation, int maxWidth,
-                            int maxHeight, Rect& visibleRect, GLfloat mVertices[][2]) {
+       int maxHeight, Rect& visibleRect, GLfloat mVertices[][2], bool wideVideo) {
 
     if ((wRatio == 0) || (hRatio == 0))
         return;
@@ -745,10 +745,17 @@ void applyPixelAspectRatio (int wRatio, int hRatio, int orientation, int maxWidt
 
     if (orientation == Transform::ROT_INVALID) {
         // During animation, no defined orientation, rely on mTransformedBounds
-        if (old_width >= old_height)
-            orientation = Transform::ROT_0;
-        else
-            orientation = Transform::ROT_90;
+        if (wideVideo) {
+            if (old_width > old_height)
+                orientation = Transform::ROT_0;
+            else
+                orientation = Transform::ROT_90;
+        } else {
+            if (old_height > old_width)
+                orientation = Transform::ROT_0;
+            else
+                orientation = Transform::ROT_90;
+        }
     }
 
     switch (orientation) {
@@ -809,7 +816,7 @@ void applyPixelAspectRatio (int wRatio, int hRatio, int orientation, int maxWidt
             aspectRatio = (old_height * wRatio) / (old_width * hRatio);
             displayRatio = (float)maxHeight / (float)maxWidth;
 
-            if (aspectRatio >= displayRatio) {
+            if (displayRatio > aspectRatio) {
                 new_height = old_width * aspectRatio;
                 if (new_height > maxHeight) {
                     new_height = maxHeight;
@@ -862,4 +869,10 @@ void applyPixelAspectRatio (int wRatio, int hRatio, int orientation, int maxWidt
     }
 }
 
+
+void unlock_lastGpuSupportedBuffer(void *handle) {
+#ifndef NON_QCOM_TARGET
+    genlock_unlock_buffer((native_handle_t*)handle);
+#endif
+}
 

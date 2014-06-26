@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -175,6 +175,7 @@ struct private_module_t {
     int orientation;
     int videoOverlay; // VIDEO_OVERLAY - 2D or 3D
     int secureVideoOverlay; // VideoOverlay is secure
+    int secureConfig; // secure/unsecure is in progress
     uint32_t currentOffset;
     int enableHDMIOutput; // holds the type of external display
     bool trueMirrorSupport;

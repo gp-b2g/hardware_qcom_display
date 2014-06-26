@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 The Android Open Source Project
- * Copyright (c) 2011-2012 Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2012 The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -140,7 +140,7 @@ int gpu_context_t::gralloc_alloc_buffer(size_t size, int usage,
     else
         data.align = getpagesize();
     data.pHandle = (unsigned int) pHandle;
-    err = mAllocCtrl->allocate(data, usage, compositionType);
+    err = mAllocCtrl->allocate(data, usage, 0);
 
     if (usage & GRALLOC_USAGE_PRIVATE_UNSYNCHRONIZED) {
         flags |= private_handle_t::PRIV_FLAGS_UNSYNCHRONIZED;
@@ -232,11 +232,8 @@ int gpu_context_t::alloc_impl(int w, int h, int format, int usage,
     err = genlock_create_lock((native_handle_t*)(*pHandle));
     if (err) {
         LOGE("%s: genlock_create_lock failed", __FUNCTION__);
-//#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
-        //free_impl(reinterpret_cast<private_handle_t*>(pHandle));
         free_impl(reinterpret_cast<const private_handle_t*>(*pHandle));
-//#Fin parche	
-	return err;
+        return err;
     }
     *pStride = alignedw;
     return 0;
@@ -253,6 +250,7 @@ int gpu_context_t::free_impl(private_handle_t const* hnd) {
         terminateBuffer(&m->base, const_cast<private_handle_t*>(hnd));
         sp<IMemAlloc> memalloc = mAllocCtrl->getAllocator(hnd->flags);
         if (memalloc == NULL) {
+            LOGE("%s: Invalid handle", __FUNCTION__);
             return -EINVAL;
         }
 

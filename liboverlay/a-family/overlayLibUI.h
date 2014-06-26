@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008 The Android Open Source Project
- * Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011, The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -127,7 +127,7 @@ public:
     void setPosition(int x, int y, int w, int h);
     void setCrop(int x, int y, int w, int h);
     void setDisplayParams(int fbNum, bool waitForVsync, bool isFg, int zorder,
-            bool isVGPipe);
+            bool isVGPipe, bool preMultiBlanding);
     status_t commit();
     status_t closeChannel();
     channel_state_t isChannelUP() const { return mChannelState; };

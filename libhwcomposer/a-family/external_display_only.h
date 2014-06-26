@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -10,7 +10,7 @@
  *     copyright notice, this list of conditions and the following
  *     disclaimer in the documentation and/or other materials provided
  *     with the distribution.
- *   * Neither the name of Code Aurora Forum, Inc. nor the names of its
+ *   * Neither the name of The Linux Foundation nor the names of its
  *     contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission.
  *
@@ -246,7 +246,7 @@ int ExtDispOnly::prepare(hwc_context_t *ctx, hwc_layer_t *layer, int index,
         const int zorder = index;
         const bool isVGPipe = true;
         ovUI->setSource(info, orientation);
-        ovUI->setDisplayParams(fbnum, waitForVsync, isFg, zorder, isVGPipe);
+        ovUI->setDisplayParams(fbnum, waitForVsync, isFg, zorder, isVGPipe,false);
         const int fbWidth = ovUI->getFBWidth();
         const int fbHeight = ovUI->getFBHeight();
         ovUI->setPosition(0, 0, fbWidth, fbHeight);

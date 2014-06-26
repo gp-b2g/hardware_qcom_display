@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008 The Android Open Source Project
- * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ bool isRGBType(int format) {
         case MDP_BGRA_8888:
         case MDP_RGBX_8888:
         case MDP_RGB_565:
+        case MDP_RGB_888:
             ret = true;
             break;
         default:
@@ -63,6 +64,9 @@ int getRGBBpp(int format) {
         case MDP_BGRA_8888:
         case MDP_RGBX_8888:
             ret = 4;
+            break;
+        case MDP_RGB_888:
+            ret = 3;
             break;
         case MDP_RGB_565:
             ret = 2;
@@ -110,11 +114,14 @@ status_t Display::openDisplay(int fbnum) {
 }
 
 void Display::closeDisplay() {
-    close(mFD);
-    mFD = NO_INIT;
+    if(mFD > 0) {
+        close(mFD);
+        mFD = NO_INIT;
+    }
 }
 
-Rotator::Rotator() : mFD(NO_INIT), mSessionID(NO_INIT), mPmemFD(NO_INIT)
+Rotator::Rotator() : mFD(NO_INIT), mSessionID(NO_INIT), mPmemFD(NO_INIT),
+    mSize(0)
 {
     mAlloc = gralloc::IAllocController::getInstance(false);
 }
@@ -127,6 +134,7 @@ Rotator::~Rotator()
 status_t Rotator::startRotSession(msm_rotator_img_info& rotInfo,
                                    int size, int numBuffers) {
     status_t ret = NO_ERROR;
+    mSize = size;
     if (mSessionID == NO_INIT && mFD == NO_INIT) {
         mNumBuffers = numBuffers;
         mFD = open("/dev/msm_rotator", O_RDWR, 0);
@@ -150,15 +158,16 @@ status_t Rotator::startRotSession(msm_rotator_img_info& rotInfo,
         data.align = getpagesize();
         data.uncached = true;
 
-        int allocFlags = GRALLOC_USAGE_PRIVATE_MM_HEAP          |
-                         GRALLOC_USAGE_PRIVATE_WRITEBACK_HEAP   |
-                         GRALLOC_USAGE_PRIVATE_ADSP_HEAP        |
-                         GRALLOC_USAGE_PRIVATE_IOMMU_HEAP       |
-                         GRALLOC_USAGE_PRIVATE_SMI_HEAP         |
-                         GRALLOC_USAGE_PRIVATE_DO_NOT_MAP;
+        int allocFlags = GRALLOC_USAGE_PRIVATE_IOMMU_HEAP;
 
         int err = mAlloc->allocate(data, allocFlags, 0);
 
+        if (err == -ENODEV) {
+            // fall back to MM_HEAP or WRITEBACK_HEAP for Legacy targets
+            allocFlags |= GRALLOC_USAGE_PRIVATE_MM_HEAP |
+                    GRALLOC_USAGE_PRIVATE_WRITEBACK_HEAP;
+            err = mAlloc->allocate(data, allocFlags, 0);
+        }
         if(err) {
             LOGE("%s: Can't allocate rotator memory", __func__);
             closeRotSession();
@@ -186,7 +195,7 @@ status_t Rotator::closeRotSession() {
             close(mPmemFD);
         }
     }
-
+    mSize = 0;
     mFD = NO_INIT;
     mSessionID = NO_INIT;
     mPmemFD = NO_INIT;
@@ -251,7 +260,7 @@ void OverlayUI::setSource(const overlay_buffer_info& info, int orientation) {
 }
 
 void OverlayUI::setDisplayParams(int fbNum, bool waitForVsync, bool isFg, int
-        zorder, bool isVGPipe) {
+        zorder, bool isVGPipe, bool premultipliedAlpha) {
     int flags = 0;
 
     if(false == waitForVsync)
@@ -263,6 +272,13 @@ void OverlayUI::setDisplayParams(int fbNum, bool waitForVsync, bool isFg, int
         flags |= MDP_OV_PIPE_SHARE;
     else
         flags &= ~MDP_OV_PIPE_SHARE;
+    if(premultipliedAlpha)
+        flags |= MDP_BLEND_FG_PREMULT;
+    else
+        flags &= ~MDP_BLEND_FG_PREMULT;
+    //MDP needs this information to set up pixel repeat
+    //for VG pipes when upscaling
+    flags |= MDP_BACKEND_COMPOSITION;
 
     //MDP needs this information to set up pixel repeat
     //for VG pipes when upscaling
@@ -314,8 +330,6 @@ void OverlayUI::setupOvRotInfo() {
     mOvInfo.src.width = srcw;
     mOvInfo.src.height = srch;
     mOvInfo.src.format = format;
-    mOvInfo.src_rect.w = w;
-    mOvInfo.src_rect.h = h;
     mOvInfo.alpha = 0xff;
     mOvInfo.transp_mask = 0xffffffff;
     mRotInfo.src.format = format;
@@ -410,12 +424,12 @@ status_t OverlayUI::startOVSession() {
         return ret;
 
     if(mParamsChanged) {
-        mParamsChanged = false;
         mdp_overlay ovInfo = mOvInfo;
         if (ioctl(mobjDisplay.getFD(), MSMFB_OVERLAY_SET, &ovInfo)) {
             LOGE("Overlay set failed..");
             ret = BAD_VALUE;
         } else {
+            mParamsChanged = false;
             mSessionID = ovInfo.id;
             mOvInfo = ovInfo;
             ret = NO_ERROR;
@@ -427,13 +441,17 @@ status_t OverlayUI::startOVSession() {
 status_t OverlayUI::closeOVSession() {
     status_t ret = NO_ERROR;
     int err = 0;
-    if(err = ioctl(mobjDisplay.getFD(), MSMFB_OVERLAY_UNSET, &mSessionID)) {
-        LOGE("%s: MSMFB_OVERLAY_UNSET failed. (%d)", __FUNCTION__, err);
-        ret = BAD_VALUE;
-    } else {
+
+    if (mSessionID == NO_INIT) {
         mobjDisplay.closeDisplay();
-        mSessionID = NO_INIT;
+        LOGE("%s : session is not initialized", __FUNCTION__);
+        return ret;
     }
+    if(err = ioctl(mobjDisplay.getFD(), MSMFB_OVERLAY_UNSET, &mSessionID)) {
+        LOGW("%s: MSMFB_OVERLAY_UNSET failed. (%d)", __FUNCTION__, err);
+    }
+    mobjDisplay.closeDisplay();
+    mSessionID = NO_INIT;
     return ret;
 }
 
@@ -442,6 +460,11 @@ status_t OverlayUI::queueBuffer(buffer_handle_t buffer) {
 
     if (mChannelState != UP)
         return ret;
+
+    if (mSessionID == NO_INIT) {
+        LOGE("%s : session is not inited", __FUNCTION__);
+        return BAD_VALUE;
+    }
 
     msmfb_overlay_data ovData;
     memset(&ovData, 0, sizeof(ovData));

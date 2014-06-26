@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008 The Android Open Source Project
- * Copyright (c) 2010-2012 Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2010-2012 The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -340,7 +340,8 @@ static void *hdmi_ui_loop(void *ptr)
         int flags = WAIT_FOR_VSYNC;
         const int NO_ERROR = 0;
         Overlay* pTemp = m->pobjOverlay;
-        if(m->hdmiMirroringState == HDMI_UI_MIRRORING) {
+        if( (m->hdmiMirroringState == HDMI_UI_MIRRORING) &&
+            (m->secureConfig == false)) {
             if (startExternalChannel(m) == NO_ERROR) {
                 pTemp->queueBuffer(m->currentOffset);
             }
@@ -396,6 +397,9 @@ static int fb_enableHDMIOutput(struct framebuffer_device_t* dev, int externaltyp
             if(!m->videoOverlay)
                 m->hdmiMirroringState = HDMI_UI_MIRRORING;
         }
+        if(m->secureConfig) {
+            m->hdmiMirroringState = HDMI_NO_MIRRORING;
+        }
     } else if (!externaltype) {
         // Either HDMI is disconnected or suspend occurred
         m->hdmiMirroringState = HDMI_NO_MIRRORING;
@@ -422,6 +426,7 @@ static int handle_open_secure_start(private_module_t* m) {
     pthread_mutex_lock(&m->overlayLock);
     m->hdmiMirroringState = HDMI_NO_MIRRORING;
     m->secureVideoOverlay = true;
+    m->secureConfig = true;
     closeExternalChannel(m);
     pthread_mutex_unlock(&m->overlayLock);
     return 0;
@@ -436,6 +441,7 @@ static int handle_open_secure_end(private_module_t* m) {
             m->hdmiMirroringState = HDMI_UI_MIRRORING;
         }
         m->hdmiStateChanged = true;
+        m->secureConfig = false;
         pthread_cond_signal(&(m->overlayPost));
     }
     pthread_mutex_unlock(&m->overlayLock);
@@ -446,6 +452,7 @@ static int handle_close_secure_start(private_module_t* m) {
     pthread_mutex_lock(&m->overlayLock);
     m->hdmiMirroringState = HDMI_NO_MIRRORING;
     m->secureVideoOverlay = false;
+    m->secureConfig = true;
     closeExternalChannel(m);
     pthread_mutex_unlock(&m->overlayLock);
     return 0;
@@ -460,6 +467,7 @@ static int handle_close_secure_end(private_module_t* m) {
             m->hdmiMirroringState = HDMI_UI_MIRRORING;
         }
         m->hdmiStateChanged = true;
+        m->secureConfig = false;
         pthread_cond_signal(&(m->overlayPost));
     }
     pthread_mutex_unlock(&m->overlayLock);
@@ -655,8 +663,9 @@ static int fb_post(struct framebuffer_device_t* dev, buffer_handle_t buffer)
 
 static int fb_compositionComplete(struct framebuffer_device_t* dev)
 {
-	// TODO: Properly implement composition complete callback
-	glFinish();
+    // TODO: Properly implement composition complete callback
+    glFinish();
+
     return 0;
 }
 
@@ -789,10 +798,14 @@ int mapFrameBufferLocked(struct private_module_t* module)
         info.transp.length  = 0;
         module->fbFormat = HAL_PIXEL_FORMAT_RGB_565;
     }
+
+    //adreno needs 4k aligned offsets. Max hole size is 4096-1
+    int  size = roundUpToPageSize(info.yres * info.xres * (info.bits_per_pixel/8));
+
     /*
      * Request NUM_BUFFERS screens (at lest 2 for page flipping)
      */
-    int numberOfBuffers = (int)(finfo.smem_len/(info.yres * info.xres * (info.bits_per_pixel/8)));
+    int numberOfBuffers = (int)(finfo.smem_len/size);
     LOGV("num supported framebuffers in kernel = %d", numberOfBuffers);
 
     if (property_get("debug.gr.numframebuffers", property, NULL) > 0) {
@@ -806,18 +819,14 @@ int mapFrameBufferLocked(struct private_module_t* module)
 
     LOGV("We support %d buffers", numberOfBuffers);
 
-    info.yres_virtual = info.yres * numberOfBuffers;
+    //consider the included hole by 4k alignment
+    uint32_t line_length = (info.xres * info.bits_per_pixel / 8);
+    info.yres_virtual = (size * numberOfBuffers) / line_length;
 
     uint32_t flags = PAGE_FLIP;
-    if (ioctl(fd, FBIOPUT_VSCREENINFO, &info) == -1) {
-        info.yres_virtual = info.yres;
-        flags &= ~PAGE_FLIP;
-        LOGW("FBIOPUT_VSCREENINFO failed, page flipping not supported");
-    }
-
-    if (info.yres_virtual < info.yres * 2) {
+    if (info.yres_virtual < ((size * 2) / line_length) ) {
         // we need at least 2 for page-flipping
-        info.yres_virtual = info.yres;
+        info.yres_virtual = size / line_length;
         flags &= ~PAGE_FLIP;
         LOGW("page flipping not supported (yres_virtual=%d, requested=%d)",
                 info.yres_virtual, info.yres*2);
@@ -933,13 +942,13 @@ int mapFrameBufferLocked(struct private_module_t* module)
      */
 
     int err;
-    size_t fbSize = roundUpToPageSize(finfo.line_length * info.yres_virtual);
-    module->framebuffer = new private_handle_t(fd, fbSize,
-            private_handle_t::PRIV_FLAGS_USES_PMEM, BUFFER_TYPE_UI, module->fbFormat, info.xres, info.yres);
-
     module->numBuffers = info.yres_virtual / info.yres;
     module->bufferMask = 0;
-
+    //adreno needs page aligned offsets. Align the fbsize to pagesize.
+    size_t fbSize = roundUpToPageSize(finfo.line_length * info.yres) * module->numBuffers;
+    module->framebuffer = new private_handle_t(fd, fbSize,
+                            private_handle_t::PRIV_FLAGS_USES_PMEM, BUFFER_TYPE_UI,
+                            module->fbFormat, info.xres, info.yres);
     void* vaddr = mmap(0, fbSize, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
     if (vaddr == MAP_FAILED) {
         LOGE("Error mapping the framebuffer (%s)", strerror(errno));
@@ -947,7 +956,6 @@ int mapFrameBufferLocked(struct private_module_t* module)
         return -errno;
     }
     module->framebuffer->base = intptr_t(vaddr);
-    memset(vaddr, 0, fbSize);
 
 #if defined(HDMI_DUAL_DISPLAY)
     /* Overlay for HDMI*/
@@ -957,6 +965,8 @@ int mapFrameBufferLocked(struct private_module_t* module)
     module->currentOffset = 0;
     module->exitHDMIUILoop = false;
     module->hdmiStateChanged = false;
+    module->secureVideoOverlay = false;
+    module->secureConfig = false;
     pthread_t hdmiUIThread;
     pthread_create(&hdmiUIThread, NULL, &hdmi_ui_loop, (void *) module);
     module->hdmiMirroringState = HDMI_NO_MIRRORING;
