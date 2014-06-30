@@ -101,6 +101,7 @@ sp<IAllocController> IAllocController::getInstance(bool useMasterHeap)
 }
 
 
+#ifdef USE_ION
 //-------------- IonController-----------------------//
 IonController::IonController()
 {
@@ -139,6 +140,11 @@ int IonController::allocate(alloc_data& data, int usage,
 
     if(usage & GRALLOC_USAGE_PRIVATE_CP_BUFFER)
         ionFlags |= ION_SECURE;
+
+    if(usage & GRALLOC_USAGE_PRIVATE_DO_NOT_MAP)
+        data.allocType  |=  private_handle_t::PRIV_FLAGS_NOT_MAPPED;
+    else
+        data.allocType  &=  ~(private_handle_t::PRIV_FLAGS_NOT_MAPPED);
 
     // if no flags are set, default to
     // SF + IOMMU heaps, so that bypass can work
@@ -182,9 +188,10 @@ sp<IMemAlloc> IonController::getAllocator(int flags)
 
     return memalloc;
 }
+#endif
 
 //-------------- PmemKernelController-----------------------//
-
+#ifndef USE_ION
 PmemKernelController::PmemKernelController()
 {
      mPmemAdspAlloc = new PmemKernelAlloc(DEVICE_PMEM_ADSP);
@@ -326,7 +333,7 @@ sp<IMemAlloc> PmemAshmemController::getAllocator(int flags)
 
     return memalloc;
 }
-
+#endif
 size_t getBufferSizeAndDimensions(int width, int height, int format,
                         int& alignedw, int &alignedh)
 {

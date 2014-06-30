@@ -216,6 +216,7 @@ TileRenderer::~TileRenderer() {
 void TileRenderer::startTileRendering(int left, int top,
                                int right, int bottom,
                                int width, int height) {
+#ifdef QCOM_APP_TILE_RENDER
     bool preserve = false;
 
     if (isTiled() ||
@@ -230,9 +231,11 @@ void TileRenderer::startTileRendering(int left, int top,
     if (startTilingInternal(left, top, right, bottom, width, height, preserve) >= 0) {
         setTiled(true);
     }
+#endif
 }
 
 void TileRenderer::endTileRendering() {
+#ifdef QCOM_APP_TILE_RENDER
     if (!isTiled()) {
         return;
     }
@@ -241,11 +244,13 @@ void TileRenderer::endTileRendering() {
     TILE_RENDERER_LOGD("endTileRendering");
     setTiled(false);
     setReady(false);
+#endif
 }
 
 void TileRenderer::startTiling(int fbo, int prevfbo, int left, int top,
                                int right, int bottom,
                                int width, int height, bool preserve) {
+#ifdef QCOM_APP_TILE_RENDER
     if ((fbo == prevfbo) || !isReady() || isTiled())
         return;
 
@@ -258,10 +263,12 @@ void TileRenderer::startTiling(int fbo, int prevfbo, int left, int top,
                        left, top, right, bottom, fbo);
     startTilingInternal(left, top, right, bottom,
                         width, height, preserve);
+#endif
     return;
 }
 
 void TileRenderer::startTiling(int fbo, int prevfbo, bool preserve) {
+#ifdef QCOM_APP_TILE_RENDER
     int left, top;
     int right, bottom;
     int width, height;
@@ -276,10 +283,12 @@ void TileRenderer::startTiling(int fbo, int prevfbo, bool preserve) {
                        fbo, preserve);
     startTilingInternal(left, top, right, bottom,
                         width, height, preserve);
+#endif
     return;
 }
 
 void TileRenderer::endTiling(int fbo, int nextfbo, bool bClear) {
+#ifdef QCOM_APP_TILE_RENDER
     if ((fbo == nextfbo) || !isTiled()) {
         return;
     }
@@ -293,10 +302,13 @@ void TileRenderer::endTiling(int fbo, int nextfbo, bool bClear) {
     }
 
     endTilingInternal();
+#endif
 }
 
 void TileRenderer::clearCache(int fbo) {
+#ifdef QCOM_APP_TILE_RENDER
     mTileCacheMgr.clear(fbo);
+#endif
 }
 
 int TileRenderer::startTilingInternal(int left, int top,
