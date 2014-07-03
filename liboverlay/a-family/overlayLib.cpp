@@ -1413,10 +1413,10 @@ bool OverlayControlChannel::startOVRotatorSessions(
         } else
             mRotInfo.enable = 1;
 
-        if (mOVInfo.flags & MDP_SECURE_OVERLAY_SESSION)
-            mRotInfo.secure = 1;
-        else
-            mRotInfo.secure = 0;
+        //if (mOVInfo.flags & MDP_SECURE_OVERLAY_SESSION)
+        //    mRotInfo.secure = 1;
+        //else
+        //    mRotInfo.secure = 0;
 
         // Reset rotator scaling factor.
         mRotDscaleAdj = ROT_DSCALE_NONE;
