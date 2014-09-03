@@ -70,16 +70,13 @@ enum {
      */
     GRALLOC_USAGE_PRIVATE_UNSYNCHRONIZED  =       0x00400000,
 
-    /* Set this flag when you need to avoid mapping the memory in userspace */
-    GRALLOC_USAGE_PRIVATE_DO_NOT_MAP      =       0X00800000,
-
     /* Buffer content should be displayed on an external display only */
-    GRALLOC_USAGE_EXTERNAL_ONLY           =       0x00010000,
+    GRALLOC_USAGE_EXTERNAL_ONLY           =       0x00800000,
 
     /* Only this buffer content should be displayed on external, even if
      * other EXTERNAL_ONLY buffers are available. Used during suspend.
      */
-    GRALLOC_USAGE_EXTERNAL_BLOCK          =       0x00020000,
+    GRALLOC_USAGE_EXTERNAL_BLOCK          =       0x00010000,
 
     /* Use this flag to request content protected buffers. Please note
      * that this flag is different from the GRALLOC_USAGE_PROTECTED flag
@@ -87,7 +84,7 @@ enum {
      * but still need to be protected from screen captures
      * 0x00040000 is reserved and these values are subject to change.
      */
-    GRALLOC_USAGE_PRIVATE_CP_BUFFER       =       0x00080000,
+    GRALLOC_USAGE_PRIVATE_CP_BUFFER       =       0x00020000,
 };
 
 enum {
@@ -108,7 +105,7 @@ enum {
     HAL_PIXEL_FORMAT_NV12_ENCODEABLE  = 0x102,
     HAL_PIXEL_FORMAT_YCbCr_420_SP_TILED     = 0x108,
     HAL_PIXEL_FORMAT_YCbCr_420_SP           = 0x109,
-    HAL_PIXEL_FORMAT_YCrCb_420_SP_ADRENO    = 0x7FA30C01,
+    HAL_PIXEL_FORMAT_YCrCb_420_SP_ADRENO    = 0x10A,
     HAL_PIXEL_FORMAT_YCrCb_422_SP           = 0x10B,
     HAL_PIXEL_FORMAT_R_8                    = 0x10D,
     HAL_PIXEL_FORMAT_RG_88                  = 0x10E,
@@ -160,8 +157,6 @@ struct private_handle_t {
         PRIV_FLAGS_NOT_MAPPED     = 0x00001000, // Not mapped in userspace
         PRIV_FLAGS_EXTERNAL_ONLY  = 0x00002000, // Display on external only
         PRIV_FLAGS_EXTERNAL_BLOCK = 0x00004000, // Display only this buffer on external
-        PRIV_FLAGS_HW_COMPOSER    = 0x00080000,
-        PRIV_FLAGS_HW_TEXTURE     = 0x00100000,
     };
 
     // file-descriptors

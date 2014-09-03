@@ -57,11 +57,7 @@ int gpu_context_t::gralloc_alloc_framebuffer_locked(size_t size, int usage,
     private_module_t* m = reinterpret_cast<private_module_t*>(common.module);
 
     // we don't support allocations with both the FB and PMEM_ADSP flags
-    if (usage & (GRALLOC_USAGE_PRIVATE_UI_CONTIG_HEAP |\
-                             GRALLOC_USAGE_PRIVATE_SYSTEM_HEAP    |\
-                             GRALLOC_USAGE_PRIVATE_IOMMU_HEAP     |\
-                             GRALLOC_USAGE_PRIVATE_MM_HEAP        |\
-                             GRALLOC_USAGE_PRIVATE_CAMERA_HEAP)) {
+    if (usage & GRALLOC_USAGE_PRIVATE_ADSP_HEAP) {
         return -EINVAL;
     }
 
@@ -157,13 +153,6 @@ int gpu_context_t::gralloc_alloc_buffer(size_t size, int usage,
             flags |= private_handle_t::PRIV_FLAGS_EXTERNAL_BLOCK;
         }
     }
-    if (usage & GRALLOC_USAGE_HW_COMPOSER) {
-        flags |= private_handle_t::PRIV_FLAGS_HW_COMPOSER;
-    }
-
-    if (usage & GRALLOC_USAGE_HW_TEXTURE) {
-         flags |= private_handle_t::PRIV_FLAGS_HW_TEXTURE;
-    }
 
     if (err == 0) {
         flags |= data.allocType;
@@ -186,10 +175,15 @@ void gpu_context_t::getGrallocInformationFromFormat(int inputFormat,
     *bufferType = BUFFER_TYPE_VIDEO;
     *colorFormat = inputFormat;
 
-    // HAL_PIXEL_FORMAT_RGB_888 is MPQ color format for VCAP videos
-    // value of RGB_888 is less than 0x7 and this format is not supported
-    // by the GPU
-    if ((inputFormat < 0x7) && (inputFormat != HAL_PIXEL_FORMAT_RGB_888)) {
+    if (inputFormat == HAL_PIXEL_FORMAT_YV12) {
+        *bufferType = BUFFER_TYPE_VIDEO;
+    } else if (inputFormat & S3D_FORMAT_MASK) {
+        // S3D format
+        *colorFormat = COLOR_FORMAT(inputFormat);
+    } else if (inputFormat & INTERLACE_MASK) {
+        // Interlaced
+        *colorFormat = inputFormat ^ HAL_PIXEL_FORMAT_INTERLACE;
+    } else if (inputFormat < 0x7) {
         // RGB formats
         *colorFormat = inputFormat;
         *bufferType = BUFFER_TYPE_UI;
@@ -213,21 +207,21 @@ int gpu_context_t::alloc_impl(int w, int h, int format, int usage,
 
     if ((ssize_t)size <= 0)
         return -EINVAL;
-    size = (bufferSize != 0)? bufferSize : size;
+    size = (bufferSize >= size)? bufferSize : size;
 
     // All buffers marked as protected or for external
     // display need to go to overlay
     if ((usage & GRALLOC_USAGE_EXTERNAL_DISP) ||
         (usage & GRALLOC_USAGE_PROTECTED) ||
         (usage & GRALLOC_USAGE_PRIVATE_CP_BUFFER)) {
-        bufferType = BUFFER_TYPE_VIDEO;
+            bufferType = BUFFER_TYPE_VIDEO;
     }
     int err;
     if (usage & GRALLOC_USAGE_HW_FB) {
         err = gralloc_alloc_framebuffer(size, usage, pHandle);
     } else {
         err = gralloc_alloc_buffer(size, usage, pHandle, bufferType,
-                                   colorFormat, alignedw, alignedh);
+                                   format, alignedw, alignedh);
     }
 
     if (err < 0) {
@@ -239,7 +233,7 @@ int gpu_context_t::alloc_impl(int w, int h, int format, int usage,
     if (err) {
         LOGE("%s: genlock_create_lock failed", __FUNCTION__);
         free_impl(reinterpret_cast<const private_handle_t*>(*pHandle));
-		return err;
+        return err;
     }
     *pStride = alignedw;
     return 0;
@@ -256,6 +250,7 @@ int gpu_context_t::free_impl(private_handle_t const* hnd) {
         terminateBuffer(&m->base, const_cast<private_handle_t*>(hnd));
         sp<IMemAlloc> memalloc = mAllocCtrl->getAllocator(hnd->flags);
         if (memalloc == NULL) {
+            LOGE("%s: Invalid handle", __FUNCTION__);
             return -EINVAL;
         }
 
