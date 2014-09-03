@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008 The Android Open Source Project
- * Copyright (c) 2011 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011 Code Aurora Forum. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,8 +68,12 @@ namespace gralloc {
 
             static int gralloc_close(struct hw_device_t *dev);
 
+            int get_composition_type() const { return compositionType; }
+
+
         private:
             android::sp<IAllocController> mAllocCtrl;
+            int compositionType;
             void getGrallocInformationFromFormat(int inputFormat,
                                                  int *colorFormat,
                                                  int *bufferType);

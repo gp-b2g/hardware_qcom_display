@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008 The Android Open Source Project
- * Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1162,13 +1162,7 @@ static int stretch_copybit_internal(
         src_image.handle = src_hnd;
 
         // Copy the source.
-        status = copy_image((private_handle_t *)src->handle, &src_image, CONVERT_TO_C2D_FORMAT);
-        if (status == COPYBIT_FAILURE) {
-            LOGE("%s:copy_image failed in temp source",__FUNCTION__);
-            delete_handle(dst_hnd);
-            delete_handle(src_hnd);
-            return status;
-        }
+        copy_image((private_handle_t *)src->handle, &src_image, CONVERT_TO_C2D_FORMAT);
 
         // Flush the cache
         sp<IMemAlloc> memalloc = sAlloc->getAllocator(src_hnd->flags);
@@ -1240,13 +1234,7 @@ static int stretch_copybit_internal(
                 trg_mapped);
     if (needTempDestination) {
         // copy the temp. destination without the alignment to the actual destination.
-        status = copy_image(dst_hnd, dst, CONVERT_TO_ANDROID_FORMAT);
-        if (status == COPYBIT_FAILURE) {
-            LOGE("%s:copy_image failed in temp Dest",__FUNCTION__);
-            delete_handle(dst_hnd);
-            delete_handle(src_hnd);
-            return status;
-        }
+        copy_image(dst_hnd, dst, CONVERT_TO_ANDROID_FORMAT);
         // Invalidate the cache.
         sp<IMemAlloc> memalloc = sAlloc->getAllocator(dst_hnd->flags);
         memalloc->clean_buffer((void *)(dst_hnd->base), dst_hnd->size,
@@ -1286,6 +1274,8 @@ static int blit_copybit(
     return stretch_copybit_internal(dev, dst, src, &dr, &sr, region, false);
 }
 
+//#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
+
 /** Fill the rect on dst with rgba color **/
 static int fill_color(struct copybit_device_t *dev,
                       struct copybit_image_t const *dst,
@@ -1296,6 +1286,7 @@ static int fill_color(struct copybit_device_t *dev,
     return -EINVAL;
 }
 
+//#Fin parche
 /*****************************************************************************/
 
 /** Close the copybit device */
@@ -1383,7 +1374,7 @@ static int open_copybit(const struct hw_module_t* module, const char* name,
     ctx->device.get = get;
     ctx->device.blit = blit_copybit;
     ctx->device.stretch = stretch_copybit;
-    ctx->blitState.config_mask = C2D_NO_ANTIALIASING_BIT;
+    ctx->blitState.config_mask = C2D_NO_BILINEAR_BIT | C2D_NO_ANTIALIASING_BIT;
     ctx->trg_transform = C2D_TARGET_ROTATE_0;
 
     /* Create RGB Surface */

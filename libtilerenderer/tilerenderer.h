@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 The Android Open Source Project
- * Copyright (c) 2011, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011, Code Aurora Forum. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -99,12 +99,12 @@ public:
 
     void startTileRendering(int left, int top, int right,
                             int bottom, int width, int height);
-    void startTiling(int fbo, int prevfbo, int left = 0, int top = 0, int right = 0,
+    void startTiling(int fbo, int left = 0, int top = 0, int right = 0,
                      int bottom = 0, int width = 0, int height = 0,
                      bool preserve = false);
-    void startTiling(int fbo, int prevfbo, bool preserve);
+    void startTiling(int fbo, bool preserve);
     void endTileRendering();
-    void endTiling(int fbo, int nextfbo, bool bClear = false);
+    void endTiling(int fbo, bool bClear = false);
     void clearCache(int fbo);
 private:
     int startTilingInternal(int left, int top, int right,

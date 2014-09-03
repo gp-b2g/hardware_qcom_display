@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -10,7 +10,7 @@
  *     copyright notice, this list of conditions and the following
  *     disclaimer in the documentation and/or other materials provided
  *     with the distribution.
- *   * Neither the name of The Linux Foundation nor the names of its
+ *   * Neither the name of Code Aurora Forum, Inc. nor the names of its
  *     contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission.
  *
@@ -95,7 +95,9 @@ enum {
 enum {
     HWC_LAYER_NOT_UPDATING      = 0x00000002,
     HWC_LAYER_ASYNCHRONOUS      = 0x00000004,
-    HWC_FORMAT_RB_SWAP          = 0x00000040, //Swap the RB pixels
+//#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
+    HWC_COLOR_FILL              = 0x00000008, //RGBA color-fill using copybit
+//#Fin parche
     HWC_USE_ORIGINAL_RESOLUTION = 0x10000000,
     HWC_DO_NOT_USE_OVERLAY      = 0x20000000,
     HWC_COMP_BYPASS             = 0x40000000,
@@ -132,16 +134,6 @@ enum {
     EVENT_CLOSE_SECURE_END,     // End of secure session teardown config
     EVENT_RESET_POSTBUFFER,     // Reset post framebuffer mutex
     EVENT_WAIT_POSTBUFFER,      // Wait until post framebuffer returns
-    EVENT_GET_VAR_PIPE,         // Read variable pipe
-    EVENT_SET_VAR_PIPE_MODE,    // Set variable pipe mode
-    EVENT_GET_VAR_PIPE_MODE,    // Query variable pipe mode
-    EVENT_FORCE_COMPOSITION,    // On/Off event for avoiding skip composition
-};
-
-enum {
-    VAR_PIPE_FB_ATTACH,
-    VAR_PIPE_FB_DETACH,
-    VAR_PIPE_CLOSE,
 };
 
 // Video information sent to framebuffer HAl
@@ -351,8 +343,6 @@ void dumpLayer(int moduleCompositionType, int listFlags, size_t layerIndex,
 
 bool needsAspectRatio (int wRatio, int hRatio);
 void applyPixelAspectRatio (int wRatio, int hRatio, int orientation, int fbWidth,
-         int fbHeight, Rect& visibleRect, GLfloat vertices[][2], bool wideVideo);
-
-void unlock_lastGpuSupportedBuffer(void *handle);
+                            int fbHeight, Rect& visibleRect, GLfloat vertices[][2]);
 
 #endif // INCLUDE_LIBQCOM_UI

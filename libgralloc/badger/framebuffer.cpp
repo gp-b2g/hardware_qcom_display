@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008 The Android Open Source Project
- * Copyright (c) 2010-2012 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2010-2012 Code Aurora Forum. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -988,6 +988,7 @@ int mapFrameBufferLocked(struct private_module_t* module)
         return -errno;
     }
     module->framebuffer->base = intptr_t(vaddr);
+    memset(vaddr, 0, fbSize);
 
 #if defined(HDMI_DUAL_DISPLAY)
     /* Overlay for HDMI*/

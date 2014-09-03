@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 The Android Open Source Project
- * Copyright (c) 2011 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011 Code Aurora Forum. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -243,10 +243,10 @@ void TileRenderer::endTileRendering() {
     setReady(false);
 }
 
-void TileRenderer::startTiling(int fbo, int prevfbo, int left, int top,
+void TileRenderer::startTiling(int fbo, int left, int top,
                                int right, int bottom,
                                int width, int height, bool preserve) {
-    if ((fbo == prevfbo) || !isReady() || isTiled())
+    if (!isReady() || isTiled())
         return;
 
     mTileCacheMgr.set(fbo, left, top, right, bottom, width, height);
@@ -261,12 +261,12 @@ void TileRenderer::startTiling(int fbo, int prevfbo, int left, int top,
     return;
 }
 
-void TileRenderer::startTiling(int fbo, int prevfbo, bool preserve) {
+void TileRenderer::startTiling(int fbo, bool preserve) {
     int left, top;
     int right, bottom;
     int width, height;
 
-    if ((fbo == prevfbo) || !isReady() || isTiled())
+    if (!isReady() || isTiled())
         return;
 
     mTileCacheMgr.peek(fbo, left, top, right, bottom, width, height);
@@ -279,8 +279,8 @@ void TileRenderer::startTiling(int fbo, int prevfbo, bool preserve) {
     return;
 }
 
-void TileRenderer::endTiling(int fbo, int nextfbo, bool bClear) {
-    if ((fbo == nextfbo) || !isTiled()) {
+void TileRenderer::endTiling(int fbo, bool bClear) {
+    if (!isTiled()) {
         return;
     }
     TILE_RENDERER_LOGD("TileRenderer::end fbo=%d", fbo);

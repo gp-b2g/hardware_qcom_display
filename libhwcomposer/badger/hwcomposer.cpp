@@ -1355,6 +1355,7 @@ static int hwc_prepare(hwc_composer_device_t *dev, hwc_layer_list_t* list) {
                 if(isYuvBuffer(hnd)) {
                     if (ctx->hwcOverlayStatus == HWC_OVERLAY_OPEN)
                         ctx->hwcOverlayStatus = HWC_OVERLAY_PREPARE_TO_CLOSE;
+                    unlockPreviousOverlayBuffer(ctx);
                 }
                 // During the animaton UI layers are marked as SKIP
                 // need to still mark the layer for S3D composition
@@ -1884,7 +1885,6 @@ static int hwc_set(hwc_composer_device_t *dev,
 
     private_hwc_module_t* hwcModule = reinterpret_cast<private_hwc_module_t*>(
                                                            dev->common.module);
-
     if (!hwcModule) {
         LOGE("hwc_set invalid module");
 #ifdef COMPOSITION_BYPASS
@@ -1894,8 +1894,6 @@ static int hwc_set(hwc_composer_device_t *dev,
         unlockPreviousOverlayBuffer(ctx);
         return -1;
     }
-
-    framebuffer_device_t *fbDev = hwcModule->fbDevice;
 
     int ret = 0;
     if (list) {
@@ -1943,29 +1941,16 @@ static int hwc_set(hwc_composer_device_t *dev,
 #endif
     // Do not call eglSwapBuffers if we the skip composition flag is set on the list.
     if (dpy && sur && !canSkipComposition) {
-        //Wait for closing pipes and unlocking buffers until FB is done posting
-        //buffers, only if MDP pipes are in use. (Video, Comp.Bypass)
-        //For future releases we might wait even for UI updates. TBD.
-        bool waitForFBPost = false;
-
-        if(ctx->hwcOverlayStatus != HWC_OVERLAY_CLOSED)
-            waitForFBPost = true;
-
-        //Reset FB post status before doing eglSwap
-        if(waitForFBPost)
-            fbDev->perform(fbDev, EVENT_RESET_POSTBUFFER, NULL);
-
         EGLBoolean sucess = eglSwapBuffers((EGLDisplay)dpy, (EGLSurface)sur);
         if (!sucess) {
             ret = HWC_EGL_ERROR;
-        } else {
-            //If swap succeeds, wait till FB posts buffer for display.
-            if(waitForFBPost)
-              fbDev->perform(fbDev, EVENT_WAIT_POSTBUFFER, NULL);
         }
     } else {
         CALC_FPS();
     }
+
+    // Unlock the previously locked buffer, since the overlay has completed reading the buffer
+    unlockPreviousOverlayBuffer(ctx);
 
 #if defined HDMI_DUAL_DISPLAY
     if(ctx->pendingHDMI) {
@@ -1986,10 +1971,6 @@ static int hwc_set(hwc_composer_device_t *dev,
 #endif
 
     hwc_closeOverlayChannels(ctx);
-    // Unlock the previously locked vdeo buffer, since the overlay has completed
-    // reading the buffer. Should be done only after closing channels, if
-    // applicable.
-    unlockPreviousOverlayBuffer(ctx);
     return ret;
 }
 

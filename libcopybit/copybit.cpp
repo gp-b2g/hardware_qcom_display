@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008 The Android Open Source Project
- * Copyright (c) 2010 - 2011, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2010 - 2011, Code Aurora Forum. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -131,7 +131,6 @@ static int get_format(int format) {
     case HAL_PIXEL_FORMAT_YCbCr_422_SP:  return MDP_Y_CRCB_H2V1;
     case HAL_PIXEL_FORMAT_YCbCr_420_SP:  return MDP_Y_CRCB_H2V2;
     case HAL_PIXEL_FORMAT_YCrCb_420_SP_ADRENO: return MDP_Y_CBCR_H2V2_ADRENO;
-    case COPYBIT_FORMAT_XRGB_8888:       return MDP_XRGB_8888;
     }
     return -1;
 }
@@ -228,7 +227,7 @@ static int msm_copybit(struct copybit_context_t *dev, void const *list)
 #if DEBUG_MDP_ERRORS
         struct mdp_blit_req_list const* l = (struct mdp_blit_req_list const*)list;
         for (int i=0 ; i<l->count ; i++) {
-            LOGE("%d: src={w=%d, h=%d, f=%d, rect={%d,%d,%d,%d}}\n"
+            LOGD("%d: src={w=%d, h=%d, f=%d, rect={%d,%d,%d,%d}}\n"
                  "    dst={w=%d, h=%d, f=%d, rect={%d,%d,%d,%d}}\n"
                  "    flags=%08lx"
                     ,
@@ -383,7 +382,6 @@ static int stretch_copybit(
                 case HAL_PIXEL_FORMAT_BGRA_8888:
                 case HAL_PIXEL_FORMAT_RGBA_5551:
                 case HAL_PIXEL_FORMAT_RGBA_4444:
-                    LOGE ("%s : Unsupported Pixel format %d", __FUNCTION__, src->format);
                     return -EINVAL;
             }
         }
@@ -391,21 +389,14 @@ static int stretch_copybit(
         if (src_rect->l < 0 || src_rect->r > src->w ||
             src_rect->t < 0 || src_rect->b > src->h) {
             // this is always invalid
-            LOGE ("%s : Invalid source rectangle : src_rect l %d t %d r %d b %d",\
-                        __FUNCTION__, src_rect->l, src_rect->t, src_rect->r, src_rect->b);
-
             return -EINVAL;
         }
 
-        if (src->w > MAX_DIMENSION || src->h > MAX_DIMENSION) {
-            LOGE ("%s : Invalid source dimensions w %d h %d", __FUNCTION__, src->w, src->h);
+        if (src->w > MAX_DIMENSION || src->h > MAX_DIMENSION)
             return -EINVAL;
-        }
 
-        if (dst->w > MAX_DIMENSION || dst->h > MAX_DIMENSION) {
-            LOGE ("%s : Invalid DST dimensions w %d h %d", __FUNCTION__, dst->w, dst->h);
+        if (dst->w > MAX_DIMENSION || dst->h > MAX_DIMENSION)
             return -EINVAL;
-        }
 
         if(src->format ==  HAL_PIXEL_FORMAT_YV12) {
             int usage = GRALLOC_USAGE_PRIVATE_ADSP_HEAP | GRALLOC_USAGE_PRIVATE_MM_HEAP;
@@ -445,12 +436,15 @@ static int stretch_copybit(
             set_infos(ctx, req, flags);
             set_image(&req->dst, dst);
             set_image(&req->src, src);
+//#CORVUS - Parche https://github.com/mozilla-b2g/gonk-patches/commit/5dda2b19ffe5517cf5730971a3cdfc489ca5bff3
             if (req->src.format == MDP_RGBA_8888) {
                 req->src.format = MDP_BGRA_8888;
             }
             else if (req->src.format == MDP_RGBX_8888) {
                 req->src.format = MDP_XRGB_8888;
             }
+
+//#Fin parche
             set_rects(ctx, req, dst_rect, src_rect, &clip, src->horiz_padding, src->vert_padding);
 
             if (req->src_rect.w<=0 || req->src_rect.h<=0)
@@ -468,7 +462,6 @@ static int stretch_copybit(
             status = msm_copybit(ctx, &list);
         }
     } else {
-        LOGE ("%s : Invalid COPYBIT context", __FUNCTION__);
         status = -EINVAL;
     }
     if(yv12_handle)

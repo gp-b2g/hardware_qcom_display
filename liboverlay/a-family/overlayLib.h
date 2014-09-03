@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008 The Android Open Source Project
- * Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,8 +81,7 @@
 
 enum {
     HDMI_OFF,
-    HDMI_ON,
-    HDMI_INVALIDATE_STATE = -1
+    HDMI_ON
 };
 
 enum {
@@ -101,7 +100,6 @@ enum {
     INTERLACED_CONTENT         = 1<<2,
     OVERLAY_PIPE_SHARE         = 1<<3,
     SECURE_OVERLAY_SESSION     = 1<<4,
-    OVERLAY_BLENDING_PREMULT   = 1<<5,
 };
 
 /* ------------------------------- 3D defines ---------------------------------------*/
@@ -149,14 +147,6 @@ struct overlay_buffer_info {
 
 using android::Mutex;
 namespace overlay {
-
-// Set rotator downscale factors according to MMSS SWI manual.
-enum rot_dscale_factor {
-    ROT_DSCALE_NONE = 0,
-    ROT_DSCALE_ONE_HALF = 1,
-    ROT_DSCALE_ONE_FOURTH = 2,
-    ROT_DSCALE_ONE_EIGTH = 3
-};
 
 #define FB_DEVICE_TEMPLATE "/dev/graphics/fb%u"
 
@@ -242,7 +232,6 @@ int initOverlay();
 void dump(msm_rotator_img_info& mRotInfo);
 void dump(mdp_overlay& mOvInfo);
 const char* getFormatString(int format);
-const char* getFbNumString(int fbnum);
 
     //singleton class to decide the z order of new overlay surfaces
     class ZOrderManager {
@@ -313,8 +302,6 @@ enum {
     msm_rotator_img_info mRotInfo;
     msmfb_overlay_3d m3DOVInfo;
     bool mIsChannelUpdated;
-    rot_dscale_factor mRotDscaleAdj; // For rotator assisted MDP downscaling.
-
     bool openDevices(int fbnum = -1);
     bool setOverlayInformation(const overlay_buffer_info& info,
                                int zorder = 0, int flags = 0,
@@ -337,9 +324,6 @@ public:
     bool setTransform(int value, bool fetch = true);
     void setSize (int size) { mSize = size; }
     bool getPosition(int& x, int& y, uint32_t& w, uint32_t& h);
-    bool setCrop(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
-    bool getCropS3D(overlay_rect *inRect, int channel, int format,
-                                                            overlay_rect *rect);
     bool getOvSessionID(int& sessionID) const;
     bool getRotSessionID(int& sessionID) const;
     bool getSize(int& size) const;
@@ -360,12 +344,6 @@ public:
     bool setVisualParam(int8_t paramType, float paramValue);
     bool useVirtualFB ();
     bool doFlagsNeedUpdate(int flags);
-    rot_dscale_factor rotatorDownscaleCheck(int src_w, int src_h,
-                                                        int dst_w, int dst_h);
-    bool rotatorDownscaleControl(int src_w, int src_h, int dst_w, int dst_h,
-                            mdp_overlay &ovinfo, msm_rotator_img_info &rotinfo);
-    void rotatorAdjustOvSrcRect(mdp_overlay &ov);
-    void rotatorResetAdjustOvSrcRect(mdp_overlay &ov);
 };
 
 class OverlayDataChannel {
@@ -405,6 +383,8 @@ public:
     bool setFd(int fd);
     bool queueBuffer(uint32_t offset);
     bool waitForHdmiVsync();
+    bool setCrop(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+    bool getCropS3D(overlay_rect *inRect, int channel, int format, overlay_rect *rect);
     bool isChannelUP() const { return (mFD > 0); }
     bool updateDataChannel(int size);
 };
